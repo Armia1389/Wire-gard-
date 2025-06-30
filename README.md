@@ -1,1 +1,1 @@
-# Wire-gard-
+vpn-panel
