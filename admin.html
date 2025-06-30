@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل مدیریت VPN</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --danger: #e74c3c;
+            --success: #2ecc71;
+            --warning: #f39c12;
+            --dark: #2c3e50;
+        }
+        body {
+            font-family: Tahoma, sans-serif;
+            background: #f5f7fa;
+            margin: 0;
+            padding: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        th {
+            background: var(--primary);
+            color: white;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: white;
+        }
+        .badge-success { background: var(--success); }
+        .badge-danger { background: var(--danger); }
+        .badge-warning { background: var(--warning); }
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>پنل مدیریت VPN</h1>
+        <div id="loginSection">
+            <h2>ورود ادمین</h2>
+            <input type="password" id="Password" placeholder="رمز عبور ادمین" value="Armia2010">
+            <button onclick="login()" class="btn-primary">ورود</button>
+        </div>
+
+        <div id="adminPanel" class="hidden">
+            <!-- تب‌های مدیریت -->
+            <div style="margin-bottom: 20px;">
+                <button onclick="showTab('users')" class="btn-primary">کاربران</button>
+                <button onclick="showTab('premiumCodes')" class="btn-primary">کدهای پرمیوم</button>
+            </div>
+
+            <!-- تب مدیریت کاربران -->
+            <div id="usersTab">
+                <h2>لیست کاربران</h2>
+                <table id="usersTable">
+                    <thead>
+                        <tr>
+                            <th>شناسه کاربر</th>
+                            <th>وضعیت پرمیوم</th>
+                            <th>وضعیت حساب</th>
+                            <th>تاریخ ثبت‌نام</th>
+                            <th>عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersList"></tbody>
+                </table>
+            </div>
+
+            <!-- تب کدهای پرمیوم -->
+            <div id="premiumCodesTab" class="hidden">
+                <h2>کدهای پرمیوم</h2>
+                <button onclick="generatePremiumCode()" class="btn-success">ساخت کد جدید</button>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>کد</th>
+                            <th>وضعیت</th>
+                            <th>استفاده شده توسط</th>
+                        </tr>
+                    </thead>
+                    <tbody id="premiumCodesList"></tbody>
+                </table>
+            </div>
+
+            <!-- جزئیات کاربر -->
+            <div id="userDetails" class="hidden">
+                <h2 id="userDetailsTitle">جزئیات کاربر</h2>
+                <div id="userConfigs"></div>
+                <button onclick="backToUsers()" class="btn-primary">بازگشت</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // —— (۱) ذخیره داده‌ها در localStorage ——
+        const STORAGE_KEY = "vpnAdminData";
+        
+        // داده‌های پیش‌فرض (اگر خالی باشند)
+        const defaultData = {
+            users: [],
+            premiumCodes: [],
+            adminPassword: "admin123" // رمز پیش‌فرض
+        };
+
+        // —— (۲) توابع اصلی ——
+        function getData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            return data ? JSON.parse(data) : defaultData;
+        }
+
+        function saveData(data) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        // —— (۳) سیستم ورود ادمین ——
+        function login() {
+            const password = document.getElementById("adminPassword").value;
+            const data = getData();
+            
+            if (password === data.adminPassword) {
+                document.getElementById("loginSection").classList.add("hidden");
+                document.getElementById("adminPanel").classList.remove("hidden");
+                loadUsers();
+            } else {
+                alert("رمز عبور اشتباه است!");
+            }
+        }
+
+        // —— (۴) مدیریت کاربران ——
+        function loadUsers() {
+            const data = getData();
+            const usersList = document.getElementById("usersList");
+            usersList.innerHTML = "";
+            
+            data.users.forEach(user => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${user.id}</td>
+                    <td><span class="badge ${user.isPremium ? 'badge-success' : 'badge-warning'}">
+                        ${user.isPremium ? 'پرمیوم' : 'عادی'}
+                    </span></td>
+                    <td><span class="badge ${user.isBlocked ? 'badge-danger' : 'badge-success'}">
+                        ${user.isBlocked ? 'مسدود' : 'فعال'}
+                    </span></td>
+                    <td>${new Date(user.createdAt).toLocaleString("fa-IR")}</td>
+                    <td>
+                        <button onclick="viewUser('${user.id}')" class="btn-primary">مشاهده</button>
+                        <button onclick="toggleBlock('${user.id}')" class="${user.isBlocked ? 'btn-success' : 'btn-danger'}">
+                            ${user.isBlocked ? 'رفع مسدود' : 'مسدود'}
+                        </button>
+                        <button onclick="togglePremium('${user.id}')" class="${user.isPremium ? 'btn-warning' : 'btn-success'}">
+                            ${user.isPremium ? 'لغو پرمیوم' : 'تبدیل به پرمیوم'}
+                        </button>
+                    </td>
+                `;
+                usersList.appendChild(row);
+            });
+        }
+
+        function viewUser(userId) {
+            const data = getData();
+            const user = data.users.find(u => u.id === userId);
+            
+            document.getElementById("usersTab").classList.add("hidden");
+            document.getElementById("userDetails").classList.remove("hidden");
+            document.getElementById("userDetailsTitle").textContent = `کاربر: ${user.id}`;
+            
+            const configsHTML = user.configs.map(config => `
+                <div class="card" style="margin: 10px 0;">
+                    <h3>کانفیگ (${new Date(config.date).toLocaleString("fa-IR")})</h3>
+                    <pre>${config.text}</pre>
+                </div>
+            `).join("");
+            
+            document.getElementById("userConfigs").innerHTML = configsHTML || "<p>کانفیگی یافت نشد.</p>";
+        }
+
+        function toggleBlock(userId) {
+            const data = getData();
+            const user = data.users.find(u => u.id === userId);
+            user.isBlocked = !user.isBlocked;
+            saveData(data);
+            loadUsers();
+        }
+
+        function togglePremium(userId) {
+            const data = getData();
+            const user = data.users.find(u => u.id === userId);
+            user.isPremium = !user.isPremium;
+            saveData(data);
+            loadUsers();
+        }
+
+        function backToUsers() {
+            document.getElementById("usersTab").classList.remove("hidden");
+            document.getElementById("userDetails").classList.add("hidden");
+        }
+
+        // —— (۵) مدیریت کدهای پرمیوم ——
+        function loadPremiumCodes() {
+            const data = getData();
+            const codesList = document.getElementById("premiumCodesList");
+            codesList.innerHTML = "";
+            
+            data.premiumCodes.forEach(code => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${code.code}</td>
+                    <td><span class="badge ${code.isUsed ? 'badge-danger' : 'badge-success'}">
+                        ${code.isUsed ? 'استفاده شده' : 'فعال'}
+                    </span></td>
+                    <td>${code.usedBy || '-'}</td>
+                `;
+                codesList.appendChild(row);
+            });
+        }
+
+        function generatePremiumCode() {
+            const data = getData();
+            const newCode = {
+                code: "VIP-" + Math.random().toString(36).substr(2, 8).toUpperCase(),
+                isUsed: false,
+                usedBy: null
+            };
+            
+            data.premiumCodes.push(newCode);
+            saveData(data);
+            loadPremiumCodes();
+            alert(`کد پرمیوم جدید: ${newCode.code}`);
+        }
+
+        // —— (۶) نمایش تب‌ها ——
+        function showTab(tabName) {
+            document.getElementById("usersTab").classList.add("hidden");
+            document.getElementById("premiumCodesTab").classList.add("hidden");
+            
+            if (tabName === "users") {
+                document.getElementById("usersTab").classList.remove("hidden");
+                loadUsers();
+            } else if (tabName === "premiumCodes") {
+                document.getElementById("premiumCodesTab").classList.remove("hidden");
+                loadPremiumCodes();
+            }
+        }
+
+        // —— (۷) بارگذاری اولیه ——
+        // داده‌های تستی (در صورت خالی بودن)
+        function initSampleData() {
+            const data = getData();
+            
+            if (data.users.length === 0) {
+                data.users = [
+                    {
+                        id: "user-1a2b3c",
+                        isPremium: true,
+                        isBlocked: false,
+                        createdAt: new Date().toISOString(),
+                        configs: [
+                            {
+                                date: new Date().toISOString(),
+                                text: "[Interface]\nPrivateKey = ABC123...\nAddress = 10.0.0.1\n\n[Peer]\nPublicKey = XYZ456..."
+                            }
+                        ]
+                    },
+                    {
+                        id: "user-4d5e6f",
+                        isPremium: false,
+                        isBlocked: true,
+                        createdAt: new Date(Date.now() - 86400000).toISOString(),
+                        configs: []
+                    }
+                ];
+                saveData(data);
+            }
+            
+            if (data.premiumCodes.length === 0) {
+                data.premiumCodes = [
+                    { code: "VIP-ABCD1234", isUsed: true, usedBy: "user-1a2b3c" },
+                    { code: "VIP-WXYZ5678", isUsed: false, usedBy: null }
+                ];
+                saveData(data);
+            }
+        }
+
+        // اجرای اولیه
+        initSampleData();
+    </script>
+</body>
+</html>
